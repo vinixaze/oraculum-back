@@ -32,7 +32,7 @@ app.get('/', (req, res) => {
     endpoints: {
       api: '/api',
       health: '/api/health',
-      docs: 'https://github.com/seu-repo/docs'
+      docs: 'https://github.com/vinixaze/oraculum-back'
     },
     firebase: isFirebaseConnected() ? 'Conectado' : 'Modo desenvolvimento (memória)'
   });
