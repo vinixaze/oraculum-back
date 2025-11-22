@@ -2,19 +2,20 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const { initializeFirebase, isFirebaseConnected } = require('./config/firebase');
+const { initializeFirebase } = require('./config/firebase');
+const { initializeDatabase, isPostgresConnected } = require('./config/db');
 const routes = require('./routes');
 
 const app = express();
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || '*',
   credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
@@ -23,26 +24,55 @@ if (process.env.NODE_ENV === 'development') {
 
 initializeFirebase();
 
+initializeDatabase();
+
+// Rotas
 app.use('/api', routes);
+
+app.get('/api/test-db', async (req, res) => {
+  const { getPool } = require('./config/db');
+  const pool = getPool();
+
+  if (!pool) {
+    return res.json({ 
+      status: 'Sem banco configurado', 
+      mode: 'Dados em memória' 
+    });
+  }
+
+  try {
+    const result = await pool.query('SELECT NOW() as time, current_database() as database');
+    res.json({ 
+      status: 'Conectado!', 
+      time: result.rows[0].time,
+      database: result.rows[0].database
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'Erro', 
+      error: error.message 
+    });
+  }
+});
 
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Oraculum Quiz API',
     version: '1.0.0',
+    status: 'online',
     endpoints: {
-      api: '/api',
       health: '/api/health',
-      docs: 'https://github.com/vinixaze/oraculum-back'
-    },
-    firebase: isFirebaseConnected() ? 'Conectado' : 'Modo desenvolvimento (memória)'
+      testDb: '/api/test-db',
+      docs: '/api'
+    }
   });
 });
 
 app.use((err, req, res, next) => {
-  console.error('❌ Erro:', err);
+  console.error('Erro:', err);
   res.status(500).json({ 
     error: 'Erro interno do servidor',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Erro no servidor'
   });
 });
 
@@ -51,46 +81,16 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  const firebaseStatus = isFirebaseConnected() 
-    ? '🔥 Conectado' 
-    : '⚠️  Modo desenvolvimento (dados em memória)';
 
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ╔════════════════════════════════════════════════╗
 ║          🚀 ORACULUM QUIZ API                  ║
 ╠════════════════════════════════════════════════╣
-║  Servidor:     http://localhost:${PORT}         ║
-║  API:          http://localhost:${PORT}/api     ║
-║  Health:       http://localhost:${PORT}/api/health ║
-║  Firebase:     ${firebaseStatus.padEnd(30)} ║
+║  Servidor:     http://0.0.0.0:${PORT}          ║
 ║  Ambiente:     ${process.env.NODE_ENV || 'development'}                   ║
+║  PostgreSQL:   ${isPostgresConnected() ? 'Online' : 'Offline'}        ║
 ╚════════════════════════════════════════════════╝
-
-📝 Endpoints disponíveis:
-   POST   /api/users/register
-   GET    /api/users/:email
-   
-   POST   /api/quiz/start
-   POST   /api/quiz/answer
-   POST   /api/quiz/submit
-   GET    /api/quiz/result/:email
-   
-   POST   /api/trail/progress
-   GET    /api/trail/progress/:email
-   
-   GET    /api/manager/dashboard (admin only)
-   GET    /api/manager/collaborator/:email (admin only)
-
-${isFirebaseConnected() ? '' : `
-⚠️  ATENÇÃO: Firebase não configurado!
-   O backend está funcionando com dados em memória.
-   
-   Para conectar ao Firebase:
-   1. Adicione serviceAccountKey.json na raiz
-   2. Descomente as linhas no src/config/firebase.js
-   3. Reinicie o servidor
-`}
   `);
 });
 

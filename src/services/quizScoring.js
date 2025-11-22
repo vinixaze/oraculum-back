@@ -1,6 +1,6 @@
 class QuizScoringService {
   constructor() {
-    this.MODOS = {
+        this.MODOS = {
       FACIL: { pesoIniciante: 1, pesoExpert: 3, nome: 'Fácil' },
       MEDIO: { pesoIniciante: 2, pesoExpert: 5, nome: 'Médio' },
       DIFICIL: { pesoIniciante: 3, pesoExpert: 7, nome: 'Difícil' }
@@ -27,9 +27,19 @@ class QuizScoringService {
     };
   }
 
+  /**
+   * @param {Object} sessao - Sessão atual do quiz
+   * @param {Number} questaoId - ID da questão
+   * @param {Boolean} respostaCorreta - Se o usuário acertou
+   * @param {String} dificuldadeQuestao - 'INICIANTE' ou 'EXPERT'
+   * @returns {Object} - Sessão atualizada
+   */
   processarResposta(sessao, questaoId, respostaCorreta, dificuldadeQuestao) {
     if (this.quizFinalizado(sessao)) {
-      return { ...sessao, mensagem: 'Quiz já finalizado' };
+      return {
+        ...sessao,
+        mensagem: 'Quiz já finalizado'
+      };
     }
 
     sessao.totalPerguntas++;
@@ -38,7 +48,7 @@ class QuizScoringService {
     let pontosGanhos = 0;
     let mudouNivel = false;
     let mensagem = '';
-
+  
     if (sessao.nivel === 'INICIANTE') {
       if (acertou && dificuldadeQuestao === 'INICIANTE') {
         pontosGanhos = sessao.pesoIniciante;
@@ -53,6 +63,7 @@ class QuizScoringService {
       } else if (!acertou) {
         sessao.acertosSeguidosIniciante = 0;
       }
+      
     } else if (sessao.nivel === 'EXPERT') {
       if (acertou && dificuldadeQuestao === 'EXPERT') {
         pontosGanhos = sessao.pesoExpert;
@@ -79,14 +90,22 @@ class QuizScoringService {
 
     if (this.quizFinalizado(sessao)) {
       sessao.finalizado = true;
-      mensagem += sessao.pontuacao >= this.LIMITE_PONTOS 
-        ? ' 🏆 Atingiu pontuação máxima!'
-        : ' Fim das 12 perguntas.';
+      
+      if (sessao.pontuacao >= this.LIMITE_PONTOS) {
+        mensagem += ' 🏆 Parabéns! Você atingiu a pontuação máxima!';
+      } else {
+        mensagem += ' Fim das 12 perguntas.';
+      }
     }
 
     return {
       ...sessao,
-      ultimaResposta: { acertou, pontosGanhos, mudouNivel, mensagem }
+      ultimaResposta: {
+        acertou,
+        pontosGanhos,
+        mudouNivel,
+        mensagem
+      }
     };
   }
 
@@ -103,16 +122,17 @@ class QuizScoringService {
 
   gerarRelatorio(sessao) {
     const nivelFinal = this.calcularNivelFinal(sessao.pontuacao);
-    const percentualConclusao = (sessao.pontuacao / this.LIMITE_PONTOS) * 100;
+    const percentualConclusao = Math.round((sessao.pontuacao / this.LIMITE_PONTOS) * 100);
     const acertos = sessao.historico.filter(h => h.acertou).length;
+    const erros = sessao.totalPerguntas - acertos;
 
     return {
       pontuacaoFinal: sessao.pontuacao,
       nivelFinal,
       totalPerguntas: sessao.totalPerguntas,
       acertos,
-      erros: sessao.totalPerguntas - acertos,
-      percentualConclusao: Math.round(percentualConclusao),
+      erros,
+      percentualConclusao,
       modo: sessao.modo,
       atingiuMaximo: sessao.pontuacao >= this.LIMITE_PONTOS,
       historico: sessao.historico

@@ -1,3 +1,4 @@
+// src/routes/index.js
 const express = require('express');
 const router = express.Router();
 
@@ -5,6 +6,7 @@ const { verificarUsuario, verificarAdmin } = require('../middleware/auth');
 const { registerUser, getUser } = require('../controllers/userController');
 const { 
   startQuiz, 
+  getNextQuestion,
   submitAnswer, 
   submitQuiz, 
   getQuizResult 
@@ -19,7 +21,7 @@ router.post('/users/register', registerUser);
 router.get('/users/:email', getUser);
 
 router.post('/quiz/start', startQuiz);
-router.post('/quiz/answer', submitAnswer);
+router.get('/quiz/next-question/:email', getNextQuestion);
 router.post('/quiz/submit', submitQuiz);
 router.get('/quiz/result/:email', getQuizResult);
 
@@ -30,11 +32,9 @@ router.get('/manager/dashboard', verificarAdmin, getDashboard);
 router.get('/manager/collaborator/:email', verificarAdmin, getCollaboratorDetail);
 
 router.get('/health', (req, res) => {
-  const { isFirebaseConnected } = require('../config/firebase');
   res.json({ 
     status: 'OK', 
-    timestamp: new Date().toISOString(),
-    firebase: isFirebaseConnected() ? 'Conectado' : 'Desconectado (usando memória)'
+    timestamp: new Date().toISOString()
   });
 });
 
