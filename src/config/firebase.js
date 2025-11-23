@@ -5,16 +5,6 @@ let isFirebaseEnabled = false;
 
 const initializeFirebase = () => {
   try {
-    // 🔥 OPÇÃO 1: Usar serviceAccountKey.json (quando estiver pronto)
-    // Descomente as linhas abaixo e coloque o arquivo na raiz
-    /*
-    const serviceAccount = require('../../serviceAccountKey.json');
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-    */
-
-    // 🔥 OPÇÃO 2: Usar variáveis de ambiente
     if (process.env.FIREBASE_PROJECT_ID && 
         process.env.FIREBASE_CLIENT_EMAIL && 
         process.env.FIREBASE_PRIVATE_KEY) {
@@ -29,28 +19,21 @@ const initializeFirebase = () => {
 
       db = admin.firestore();
       isFirebaseEnabled = true;
-      console.log(' Firebase conectado com sucesso!');
+      console.log('🔥 Firebase conectado com sucesso!');
     } else {
-      console.log('  Firebase NÃO configurado - usando dados em memória');
-      console.log('   Para conectar o Firebase depois:');
-      console.log('   1. Adicione serviceAccountKey.json na raiz OU');
-      console.log('   2. Configure variáveis no .env');
+      console.log('ℹ️  Firebase NÃO configurado - usando PostgreSQL');
     }
   } catch (error) {
-    console.error(' Erro ao inicializar Firebase:', error.message);
-    console.log('  Continuando com dados em memória...');
+    console.error('❌ Erro ao inicializar Firebase:', error.message);
+    console.log('ℹ️  Continuando sem Firebase...');
   }
 
   return db;
 };
 
-const getDb = () => {
-  return db;
-};
+const getDb = () => db;
 
-const isFirebaseConnected = () => {
-  return isFirebaseEnabled;
-};
+const isFirebaseConnected = () => isFirebaseEnabled;
 
 module.exports = { 
   initializeFirebase, 

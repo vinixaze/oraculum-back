@@ -1,66 +1,129 @@
+const { getPool } = require('../config/db');
 const { getDb } = require('../config/firebase');
 const { memoryUsers } = require('../middleware/auth');
 
 const registerUser = async (req, res) => {
   try {
-    const { email, role = 'user' } = req.body;
+    const { email, role = 'user', nome } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email é obrigatório' });
     }
 
+    const tipo = role === 'admin' ? 'admin' : 'usuario';
+
+    console.log('📝 [registerUser] Email:', email, 'Tipo:', tipo);
+
+    const pool = getPool();
     const db = getDb();
-    
-    if (!db) {
-      const userData = {
+
+    if (pool) {
+      try {
+        console.log('🔍 [registerUser] Verificando se usuário existe...');
+        const existingUser = await pool.query(
+          'SELECT * FROM usuarios WHERE email = $1',
+          [email]
+        );
+
+        if (existingUser.rows.length > 0) {
+          console.log('✅ [registerUser] Usuário já existe');
+          await pool.query(
+            'UPDATE usuarios SET last_access = NOW() WHERE email = $1',
+            [email]
+          );
+
+          return res.json({
+            success: true,
+            user: existingUser.rows[0],
+            message: 'Usuário já cadastrado'
+          });
+        }
+
+        console.log('➕ [registerUser] Criando novo usuário...');
+        const result = await pool.query(
+          `INSERT INTO usuarios (email, tipo, nome, last_access) 
+           VALUES ($1, $2, $3, NOW()) 
+           RETURNING *`,
+          [email, tipo, nome || email.split('@')[0]]
+        );
+
+        console.log('✅ [registerUser] Usuário criado (PostgreSQL):', email);
+
+        return res.json({
+          success: true,
+          user: result.rows[0],
+          message: 'Usuário registrado com sucesso'
+        });
+
+      } catch (dbError) {
+        console.error('❌ [registerUser] Erro no PostgreSQL:', dbError.message);
+        return res.status(500).json({
+          error: 'Erro ao registrar usuário no banco de dados',
+          details: dbError.message
+        });
+      }
+    }
+
+    if (db) {
+      const userRef = db.collection('users').doc(email);
+      const userDoc = await userRef.get();
+
+      if (userDoc.exists) {
+        await userRef.update({ lastAccess: new Date().toISOString() });
+        console.log('✅ [registerUser] Usuário já existe (Firebase)');
+        
+        return res.json({
+          success: true,
+          user: { email, ...userDoc.data() },
+          message: 'Usuário já cadastrado'
+        });
+      }
+
+      const newUser = {
         email,
         role,
+        tipo,
+        nome: nome || email.split('@')[0],
         createdAt: new Date().toISOString(),
         lastAccess: new Date().toISOString(),
         quizCompleted: false
       };
-      
-      memoryUsers.set(email, userData);
-      
-      console.log(`📝 Usuário registrado (memória): ${email}`);
-      
+
+      await userRef.set(newUser);
+      console.log('✅ [registerUser] Usuário criado (Firebase)');
+
       return res.json({
         success: true,
-        user: userData,
-        message: 'Usuário registrado (modo desenvolvimento)'
+        user: newUser,
+        message: 'Usuário registrado com sucesso'
       });
     }
 
-    const userRef = db.collection('users').doc(email);
-    const userDoc = await userRef.get();
-
-    if (userDoc.exists) {
-      await userRef.update({ lastAccess: new Date().toISOString() });
-      return res.json({
-        success: true,
-        user: { email, ...userDoc.data() },
-        message: 'Usuário já cadastrado'
-      });
-    }
-
-    const newUser = {
+    const userData = {
       email,
       role,
+      tipo,
+      nome: nome || email.split('@')[0],
       createdAt: new Date().toISOString(),
       lastAccess: new Date().toISOString(),
       quizCompleted: false
     };
 
-    await userRef.set(newUser);
+    memoryUsers.set(email, userData);
+    console.log('✅ [registerUser] Usuário registrado (memória)');
 
-    res.json({
+    return res.json({
       success: true,
-      user: newUser,
-      message: 'Usuário registrado com sucesso'
+      user: userData,
+      message: 'Usuário registrado (modo desenvolvimento)'
     });
+
   } catch (error) {
-    console.error('Erro ao registrar usuário:', error);
-    res.status(500).json({ error: 'Erro ao registrar usuário' });
+    console.error('❌ [registerUser] Erro geral:', error);
+    res.status(500).json({ 
+      error: 'Erro ao registrar usuário',
+      details: error.message 
+    });
   }
 };
 
@@ -68,27 +131,131 @@ const getUser = async (req, res) => {
   try {
     const { email } = req.params;
 
+    if (!email) {
+      return res.status(400).json({ error: 'Email é obrigatório' });
+    }
+
+    const pool = getPool();
     const db = getDb();
-    
-    if (!db) {
-      const user = memoryUsers.get(email);
-      if (!user) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    if (pool) {
+      try {
+        const result = await pool.query(
+          'SELECT * FROM usuarios WHERE email = $1',
+          [email]
+        );
+
+        if (result.rows.length > 0) {
+          console.log('✅ [getUser] Usuário encontrado (PostgreSQL)');
+          return res.json({ 
+            user: result.rows[0],
+            source: 'postgresql'
+          });
+        }
+
+        console.log('⚠️ [getUser] Usuário não encontrado (PostgreSQL)');
+        
+      } catch (dbError) {
+        console.error('❌ [getUser] Erro PostgreSQL:', dbError.message);
       }
-      return res.json({ user });
     }
 
-    const userDoc = await db.collection('users').doc(email).get();
+    if (db) {
+      const userDoc = await db.collection('users').doc(email).get();
 
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
+      if (userDoc.exists) {
+        console.log('✅ [getUser] Usuário encontrado (Firebase)');
+        return res.json({ 
+          user: { email, ...userDoc.data() },
+          source: 'firebase'
+        });
+      }
     }
 
-    res.json({ user: { email, ...userDoc.data() } });
+    const user = memoryUsers.get(email);
+    if (user) {
+      console.log('✅ [getUser] Usuário encontrado (memória)');
+      return res.json({ 
+        user,
+        source: 'memory'
+      });
+    }
+
+    console.log('❌ [getUser] Usuário não encontrado em nenhuma fonte');
+    return res.status(404).json({ error: 'Usuário não encontrado' });
+
   } catch (error) {
-    console.error('Erro ao buscar usuário:', error);
-    res.status(500).json({ error: 'Erro ao buscar usuário' });
+    console.error('❌ [getUser] Erro:', error);
+    res.status(500).json({ 
+      error: 'Erro ao buscar usuário',
+      details: error.message
+    });
   }
 };
 
-module.exports = { registerUser, getUser };
+const getAllUsers = async (req, res) => {
+  try {
+    const pool = getPool();
+
+    if (!pool) {
+      return res.status(503).json({ 
+        error: 'PostgreSQL não está conectado',
+        users: Array.from(memoryUsers.values())
+      });
+    }
+
+    const result = await pool.query(
+      'SELECT id, email, nome, tipo, nivel_atual, quiz_completed, data_criacao, last_access FROM usuarios ORDER BY data_criacao DESC'
+    );
+
+    console.log(`📋 [getAllUsers] Total: ${result.rows.length}`);
+
+    res.json({
+      success: true,
+      total: result.rows.length,
+      users: result.rows
+    });
+
+  } catch (error) {
+    console.error('❌ [getAllUsers] Erro:', error);
+    res.status(500).json({ 
+      error: 'Erro ao listar usuários',
+      details: error.message
+    });
+  }
+};
+
+const testUserConnection = async (req, res) => {
+  try {
+    const pool = getPool();
+    
+    if (!pool) {
+      return res.json({
+        status: 'PostgreSQL não conectado',
+        mode: 'Usando memória ou Firebase'
+      });
+    }
+
+    const testQuery = await pool.query('SELECT NOW() as time');
+    const countQuery = await pool.query('SELECT COUNT(*) as total FROM usuarios');
+    const usersQuery = await pool.query(
+      'SELECT email, tipo, data_criacao FROM usuarios ORDER BY data_criacao DESC LIMIT 5'
+    );
+
+    res.json({
+      status: 'Conectado ao PostgreSQL',
+      serverTime: testQuery.rows[0].time,
+      totalUsers: parseInt(countQuery.rows[0].total),
+      recentUsers: usersQuery.rows
+    });
+
+  } catch (error) {
+    console.error('❌ [testUserConnection] Erro:', error);
+    res.status(500).json({
+      status: 'Erro',
+      error: error.message
+    });
+  }
+};
+
+module.exports = { registerUser, getUser, getAllUsers, testUserConnection };

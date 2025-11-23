@@ -6,7 +6,8 @@ let pool = null;
 const initializeDatabase = () => {
   try {
     if (!process.env.DATABASE_URL) {
-      console.log('⚠️  DATABASE_URL não configurado - usando dados em memória');
+      console.log('⚠️  DATABASE_URL não configurado');
+      console.log('   Configure no arquivo .env');
       return null;
     }
 
@@ -25,28 +26,25 @@ const initializeDatabase = () => {
         console.error('❌ Erro ao conectar PostgreSQL:', err.message);
         pool = null;
       } else {
-        console.log('PostgreSQL conectado!', res.rows[0].now);
+        console.log('✅ PostgreSQL conectado!');
+        console.log('   Hora do servidor:', res.rows[0].now);
       }
     });
 
     pool.on('error', (err) => {
-      console.error('Erro inesperado no pool PostgreSQL:', err);
+      console.error('❌ Erro no pool PostgreSQL:', err.message);
     });
 
     return pool;
   } catch (error) {
-    console.error('Erro ao inicializar PostgreSQL:', error.message);
+    console.error('❌ Falha ao inicializar PostgreSQL:', error.message);
     return null;
   }
 };
 
-const getPool = () => {
-  return pool;
-};
+const getPool = () => pool;
 
-const isPostgresConnected = () => {
-  return pool !== null;
-};
+const isPostgresConnected = () => pool !== null;
 
 module.exports = { 
   initializeDatabase, 

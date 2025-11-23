@@ -23,10 +23,8 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 initializeFirebase();
-
 initializeDatabase();
 
-// Rotas
 app.use('/api', routes);
 
 app.get('/api/test-db', async (req, res) => {
@@ -89,7 +87,7 @@ app.listen(PORT, '0.0.0.0', () => {
 ╠════════════════════════════════════════════════╣
 ║  Servidor:     http://0.0.0.0:${PORT}          ║
 ║  Ambiente:     ${process.env.NODE_ENV || 'development'}                   ║
-║  PostgreSQL:   ${isPostgresConnected() ? 'Online' : 'Offline'}        ║
+║  PostgreSQL:   ${isPostgresConnected() ? '✅ Online' : '❌ Offline'}                      ║
 ╚════════════════════════════════════════════════╝
   `);
 });
