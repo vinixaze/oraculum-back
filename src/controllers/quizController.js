@@ -242,6 +242,7 @@ const getNextQuestion = async (req, res) => {
       return res.json({
         question: fallbackResult.rows[0],
         pontuacaoAtual: sessao.pontuacao,
+        nivelAtual: sessao.nivel,
         totalPerguntas: sessao.total_perguntas,
         perguntaNumero: sessao.total_perguntas + 1
       });
@@ -252,6 +253,7 @@ const getNextQuestion = async (req, res) => {
     res.json({
       question: questionResult.rows[0],
       pontuacaoAtual: sessao.pontuacao,
+      nivelAtual: sessao.nivel,
       totalPerguntas: sessao.total_perguntas,
       perguntaNumero: sessao.total_perguntas + 1
     });
@@ -386,8 +388,9 @@ const submitAnswer = async (req, res) => {
       ]
     );
 
-    console.log(`Resposta processada - Pontos: ${sessaoAtualizada.pontuacao}`);
+    console.log(`✅ Resposta processada`);
 
+    // Não retornar informações de acerto/erro para o frontend
     res.json({
       success: true,
       finalizado: sessaoAtualizada.finalizado,
