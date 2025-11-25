@@ -2,19 +2,21 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const { initializeFirebase } = require('./config/firebase');
 const { initializeDatabase, isPostgresConnected } = require('./config/db');
 const routes = require('./routes');
 
 const app = express();
 
+// CORS Configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging (apenas em desenvolvimento)
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -22,19 +24,21 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-initializeFirebase();
+// Inicializar PostgreSQL
 initializeDatabase();
 
+// Rotas da API
 app.use('/api', routes);
 
+// Rota de teste do banco
 app.get('/api/test-db', async (req, res) => {
   const { getPool } = require('./config/db');
   const pool = getPool();
 
   if (!pool) {
     return res.json({ 
-      status: 'Sem banco configurado', 
-      mode: 'Dados em memória' 
+      status: 'PostgreSQL não conectado', 
+      mode: 'Verifique suas configurações' 
     });
   }
 
@@ -53,6 +57,7 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
+// Rota raiz
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Oraculum Quiz API',
@@ -66,6 +71,7 @@ app.get('/', (req, res) => {
   });
 });
 
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Erro:', err);
   res.status(500).json({ 
@@ -74,6 +80,7 @@ app.use((err, req, res, next) => {
   });
 });
 
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Rota não encontrada' });
 });

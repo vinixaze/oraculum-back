@@ -10,7 +10,6 @@ const getDashboard = async (req, res) => {
       });
     }
 
-    // Buscar todos os usuários não-admin
     const usersResult = await pool.query(`
       SELECT 
         u.id,
@@ -82,7 +81,6 @@ const getCollaboratorDetail = async (req, res) => {
       });
     }
 
-    // Buscar detalhes completos do colaborador
     const userResult = await pool.query(`
       SELECT 
         u.id,
@@ -118,12 +116,10 @@ const getCollaboratorDetail = async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Calcular progresso da trilha
     const completedLessons = user.completed_lessons ? user.completed_lessons.length : 0;
     const totalLessons = 4;
     const trailProgress = Math.round((completedLessons / totalLessons) * 100);
 
-    // Buscar histórico de respostas para badges
     const answersResult = await pool.query(`
       SELECT 
         qa.acertou,
@@ -138,7 +134,6 @@ const getCollaboratorDetail = async (req, res) => {
       ORDER BY qa.answered_at
     `, [email]);
 
-    // Gerar badges baseados no desempenho
     const badges = [];
     
     if (user.quiz_completed) {
@@ -198,7 +193,6 @@ const getCollaboratorDetail = async (req, res) => {
       nivelFinal: user.nivel_atual || 'N/A',
       pontuacaoFinal: user.pontuacao_final || 0,
       
-      // Detalhes do quiz
       acertos: user.acertos || 0,
       erros: user.erros || 0,
       totalPerguntas: user.total_perguntas || 0,
@@ -207,7 +201,6 @@ const getCollaboratorDetail = async (req, res) => {
       modo: user.modo || 'N/A',
       dataRealizacao: user.data_realizacao,
       
-      // Progresso da trilha
       trailProgress,
       completedLessonsCount: completedLessons,
       totalLessons,
@@ -215,14 +208,11 @@ const getCollaboratorDetail = async (req, res) => {
       currentLesson: user.current_lesson || 1,
       trailLastUpdate: user.trail_updated,
       
-      // Badges e conquistas
       badges,
-      
-      // Informações gerais
+
       dataCriacao: user.data_criacao,
       lastAccess: user.last_access,
-      
-      // Histórico de respostas
+
       answersHistory: answersResult.rows
     };
 
