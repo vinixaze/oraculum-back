@@ -76,14 +76,12 @@ router.get('/manager/collaborator/:email', verificarAdmin, getCollaboratorDetail
 
 router.get('/health', (req, res) => {
   const { isPostgresConnected } = require('../config/db');
-  const { isFirebaseConnected } = require('../config/firebase');
   
   res.json({ 
     status: 'OK',
     timestamp: new Date().toISOString(),
     services: {
-      postgresql: isPostgresConnected() ? 'online' : 'offline',
-      firebase: isFirebaseConnected() ? 'online' : 'offline'
+      postgresql: isPostgresConnected() ? 'online' : 'offline'
     }
   });
 });

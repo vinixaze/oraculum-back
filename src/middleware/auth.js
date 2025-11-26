@@ -1,4 +1,4 @@
-const { getDb } = require('../config/firebase');
+const { getPool } = require('../config/db');
 
 const memoryUsers = new Map();
 
@@ -10,9 +10,9 @@ const verificarUsuario = async (req, res, next) => {
       return res.status(400).json({ error: 'Email é obrigatório' });
     }
 
-    const db = getDb();
+    const pool = getPool();
     
-    if (!db) {
+    if (!pool) {
       if (!memoryUsers.has(email)) {
         return res.status(404).json({ error: 'Usuário não encontrado' });
       }
@@ -20,12 +20,16 @@ const verificarUsuario = async (req, res, next) => {
       return next();
     }
 
-    const userDoc = await db.collection('users').doc(email).get();
-    if (!userDoc.exists) {
+    const result = await pool.query(
+      'SELECT * FROM usuarios WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    req.user = { id: userDoc.id, ...userDoc.data() };
+    req.user = result.rows[0];
     next();
   } catch (error) {
     console.error('Erro no middleware de usuário:', error);
@@ -41,29 +45,32 @@ const verificarAdmin = async (req, res, next) => {
       return res.status(400).json({ error: 'Email é obrigatório para acesso admin' });
     }
 
-    const db = getDb();
+    const pool = getPool();
     
-    if (!db) {
+    if (!pool) {
       console.log('⚠️ Modo desenvolvimento - verificação de admin simplificada');
       req.user = { email, role: 'admin' };
       return next();
     }
 
-    const userDoc = await db.collection('users').doc(email).get();
+    const result = await pool.query(
+      'SELECT * FROM usuarios WHERE email = $1',
+      [email]
+    );
     
-    if (!userDoc.exists) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    const userData = userDoc.data();
+    const userData = result.rows[0];
 
-    if (userData.role !== 'admin') {
+    if (userData.tipo !== 'admin') {
       return res.status(403).json({ 
         error: 'Acesso negado. Apenas administradores.' 
       });
     }
 
-    req.user = { id: userDoc.id, ...userData };
+    req.user = userData;
     next();
   } catch (error) {
     console.error('Erro no middleware de admin:', error);

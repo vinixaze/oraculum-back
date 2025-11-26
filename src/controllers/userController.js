@@ -1,5 +1,4 @@
 const { getPool } = require('../config/db');
-const { getDb } = require('../config/firebase');
 const { memoryUsers } = require('../middleware/auth');
 
 const registerUser = async (req, res) => {
@@ -11,11 +10,9 @@ const registerUser = async (req, res) => {
     }
 
     const tipo = role === 'admin' ? 'admin' : 'usuario';
-
     console.log('📝 [registerUser] Email:', email, 'Tipo:', tipo);
 
     const pool = getPool();
-    const db = getDb();
 
     if (pool) {
       try {
@@ -64,41 +61,6 @@ const registerUser = async (req, res) => {
       }
     }
 
-    if (db) {
-      const userRef = db.collection('users').doc(email);
-      const userDoc = await userRef.get();
-
-      if (userDoc.exists) {
-        await userRef.update({ lastAccess: new Date().toISOString() });
-        console.log('✅ [registerUser] Usuário já existe (Firebase)');
-        
-        return res.json({
-          success: true,
-          user: { email, ...userDoc.data() },
-          message: 'Usuário já cadastrado'
-        });
-      }
-
-      const newUser = {
-        email,
-        role,
-        tipo,
-        nome: nome || email.split('@')[0],
-        createdAt: new Date().toISOString(),
-        lastAccess: new Date().toISOString(),
-        quizCompleted: false
-      };
-
-      await userRef.set(newUser);
-      console.log('✅ [registerUser] Usuário criado (Firebase)');
-
-      return res.json({
-        success: true,
-        user: newUser,
-        message: 'Usuário registrado com sucesso'
-      });
-    }
-
     const userData = {
       email,
       role,
@@ -136,7 +98,6 @@ const getUser = async (req, res) => {
     }
 
     const pool = getPool();
-    const db = getDb();
 
     if (pool) {
       try {
@@ -160,18 +121,6 @@ const getUser = async (req, res) => {
       }
     }
 
-    if (db) {
-      const userDoc = await db.collection('users').doc(email).get();
-
-      if (userDoc.exists) {
-        console.log('✅ [getUser] Usuário encontrado (Firebase)');
-        return res.json({ 
-          user: { email, ...userDoc.data() },
-          source: 'firebase'
-        });
-      }
-    }
-
     const user = memoryUsers.get(email);
     if (user) {
       console.log('✅ [getUser] Usuário encontrado (memória)');
@@ -181,7 +130,7 @@ const getUser = async (req, res) => {
       });
     }
 
-    console.log('❌ [getUser] Usuário não encontrado em nenhuma fonte');
+    console.log('❌ [getUser] Usuário não encontrado');
     return res.status(404).json({ error: 'Usuário não encontrado' });
 
   } catch (error) {
@@ -232,7 +181,7 @@ const testUserConnection = async (req, res) => {
     if (!pool) {
       return res.json({
         status: 'PostgreSQL não conectado',
-        mode: 'Usando memória ou Firebase'
+        mode: 'Usando memória'
       });
     }
 
