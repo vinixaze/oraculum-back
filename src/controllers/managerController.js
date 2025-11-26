@@ -31,10 +31,35 @@ const getDashboard = async (req, res) => {
       ORDER BY u.data_criacao DESC
     `);
 
+    const totalUsuarios = usersResult.rows.length;
+    const usuariosQuizCompleto = usersResult.rows.filter(u => u.quiz_completed).length;
+
+    // Contagem por nível
+    const usuariosIniciante = usersResult.rows.filter(
+      u => u.quiz_completed && u.nivel_atual === 'INICIANTE'
+    ).length;
+
+    const usuariosIntermediario = usersResult.rows.filter(
+      u => u.quiz_completed && u.nivel_atual === 'INTERMEDIÁRIO'
+    ).length;
+
+    const usuariosAvancado = usersResult.rows.filter(
+      u => u.quiz_completed && u.nivel_atual === 'AVANÇADO'
+    ).length;
+
+    // Média de pontuação
+    const pontuacaoMedia = usersResult.rows
+      .filter(u => u.quiz_completed && u.pontuacao_final)
+      .reduce((acc, u) => acc + (u.pontuacao_final || 0), 0) / (usuariosQuizCompleto || 1);
+
+    // Taxa média de acerto
+    const taxaAcertoMedia = usersResult.rows
+      .filter(u => u.quiz_completed && u.acertos && u.total_perguntas)
+      .reduce((acc, u) => acc + ((u.acertos / u.total_perguntas) * 100), 0) / (usuariosQuizCompleto || 1);
+
     const dashboard = usersResult.rows.map(user => {
-      // Calcular progresso da trilha
       const completedLessons = user.completed_lessons ? user.completed_lessons.length : 0;
-      const totalLessons = 4; // Total de aulas disponíveis
+      const totalLessons = 4;
       const trailProgress = Math.round((completedLessons / totalLessons) * 100);
 
       return {
@@ -47,7 +72,12 @@ const getDashboard = async (req, res) => {
         totalPerguntas: user.total_perguntas || 0,
         percentualQuiz: user.percentual_conclusao || 0,
         progress: trailProgress,
-        status: trailProgress === 100 ? 'completed' : user.quiz_completed ? 'in-progress' : 'not-started',
+        status:
+          trailProgress === 100
+            ? 'completed'
+            : user.quiz_completed
+            ? 'in-progress'
+            : 'not-started',
         lastAccess: user.last_access,
         dataCriacao: user.data_criacao
       };
@@ -58,7 +88,19 @@ const getDashboard = async (req, res) => {
     res.json({ 
       success: true,
       dashboard,
-      total: dashboard.length
+      statistics: {
+        totalUsuarios,
+        usuariosQuizCompleto,
+        usuariosPorNivel: {
+          iniciante: usuariosIniciante,
+          intermediario: usuariosIntermediario,
+          avancado: usuariosAvancado
+        },
+        metricas: {
+          pontuacaoMedia: Math.round(pontuacaoMedia * 10) / 10,
+          taxaAcertoMedia: Math.round(taxaAcertoMedia * 10) / 10
+        }
+      }
     });
 
   } catch (error) {

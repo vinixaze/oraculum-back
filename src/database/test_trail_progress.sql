@@ -49,6 +49,3 @@ SELECT
 FROM usuarios u
 LEFT JOIN trail_progress tp ON u.id = tp.usuario_id
 WHERE u.tipo = 'usuario';
-
---  Limpar progressos de teste
--- DELETE FROM trail_progress WHERE email = 'email@teste.com';

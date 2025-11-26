@@ -3,22 +3,16 @@ const quizScoring = require('../services/quizScoring');
 
 const startQuiz = async (req, res) => {
   try {
-    console.log('🎬 [startQuiz] Recebido:', req.body);
-    
     const { email, modo = 'MEDIO' } = req.body;
-    
+
     if (!email) {
-      console.error('❌ [startQuiz] Email não fornecido');
       return res.status(400).json({ error: 'Email é obrigatório' });
     }
 
     const pool = getPool();
 
     if (!pool) {
-      console.error('❌ [startQuiz] Pool não disponível');
-      return res.status(503).json({ 
-        error: 'Banco de dados não disponível'
-      });
+      return res.status(503).json({ error: 'Banco de dados não disponível' });
     }
 
     const userResult = await pool.query(
@@ -27,10 +21,7 @@ const startQuiz = async (req, res) => {
     );
 
     if (userResult.rows.length === 0) {
-      console.error('❌ [startQuiz] Usuário não encontrado:', email);
-      return res.status(404).json({ 
-        error: 'Usuário não encontrado'
-      });
+      return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
     const userId = userResult.rows[0].id;
@@ -73,8 +64,6 @@ const startQuiz = async (req, res) => {
       ]
     );
 
-    console.log('✅ [startQuiz] Quiz iniciado para:', email);
-
     res.json({ 
       success: true, 
       sessionId: sessionResult.rows[0].id,
@@ -84,11 +73,7 @@ const startQuiz = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [startQuiz] ERRO:', error);
-    res.status(500).json({ 
-      error: 'Erro ao iniciar quiz',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Erro ao iniciar quiz', details: error.message });
   }
 };
 
@@ -121,7 +106,7 @@ const getNextQuestion = async (req, res) => {
 
     const sessao = sessionResult.rows[0];
 
-    if (sessao.pontuacao >= 30) {
+      if (sessao.total_perguntas >= 12) {
       await pool.query(
         'UPDATE quiz_sessions SET finalizado = TRUE WHERE id = $1',
         [sessao.id]
@@ -129,21 +114,7 @@ const getNextQuestion = async (req, res) => {
 
       return res.json({
         finished: true,
-        message: 'Quiz finalizado!',
-        pontuacao: sessao.pontuacao,
-        totalPerguntas: sessao.total_perguntas
-      });
-    }
-
-    if (sessao.total_perguntas >= 12) {
-      await pool.query(
-        'UPDATE quiz_sessions SET finalizado = TRUE WHERE id = $1',
-        [sessao.id]
-      );
-
-      return res.json({
-        finished: true,
-        message: 'Quiz finalizado!',
+        message: 'Quiz finalizado - 12 perguntas respondidas!',
         pontuacao: sessao.pontuacao,
         totalPerguntas: sessao.total_perguntas
       });
@@ -233,7 +204,7 @@ const getNextQuestion = async (req, res) => {
 
         return res.json({
           finished: true,
-          message: 'Quiz finalizado!',
+          message: 'Quiz finalizado - sem mais perguntas!',
           pontuacao: sessao.pontuacao,
           totalPerguntas: sessao.total_perguntas
         });
@@ -248,7 +219,7 @@ const getNextQuestion = async (req, res) => {
       });
     }
 
-    console.log(`📝 Pergunta ${sessao.total_perguntas + 1}`);
+    console.log(`📝 Pergunta ${sessao.total_perguntas + 1}/12 carregada`);
 
     res.json({
       question: questionResult.rows[0],
@@ -269,19 +240,15 @@ const getNextQuestion = async (req, res) => {
 
 const submitAnswer = async (req, res) => {
   try {
-    const { email, perguntaId, alternativaEscolhidaId } = req.body;
+    const { email, perguntaId, alternativaEscolhidaId, usouDica } = req.body;
     const pool = getPool();
 
     if (!pool) {
-      return res.status(503).json({ 
-        error: 'Banco de dados não disponível' 
-      });
+      return res.status(503).json({ error: 'Banco de dados não disponível' });
     }
 
     if (!email || !perguntaId || !alternativaEscolhidaId) {
-      return res.status(400).json({ 
-        error: 'Dados incompletos'
-      });
+      return res.status(400).json({ error: 'Dados incompletos' });
     }
 
     const sessionResult = await pool.query(
@@ -295,9 +262,7 @@ const submitAnswer = async (req, res) => {
     );
 
     if (sessionResult.rows.length === 0) {
-      return res.status(404).json({ 
-        error: 'Sessão não encontrada' 
-      });
+      return res.status(404).json({ error: 'Sessão não encontrada' });
     }
 
     const sessao = sessionResult.rows[0];
@@ -308,9 +273,7 @@ const submitAnswer = async (req, res) => {
     );
 
     if (alreadyAnswered.rows.length > 0) {
-      return res.status(400).json({ 
-        error: 'Pergunta já foi respondida' 
-      });
+      return res.status(400).json({ error: 'Pergunta já foi respondida' });
     }
 
     const perguntaResult = await pool.query(
@@ -349,7 +312,8 @@ const submitAnswer = async (req, res) => {
       },
       perguntaId,
       respostaCorreta,
-      dificuldadeQuestao
+      dificuldadeQuestao,
+      usouDica || false
     );
 
     await pool.query(
@@ -374,8 +338,8 @@ const submitAnswer = async (req, res) => {
     await pool.query(
       `INSERT INTO quiz_answers 
        (session_id, pergunta_id, alternativa_escolhida_id, acertou, 
-        pontos_ganhos, nivel_atual, mudou_nivel, pontuacao_total) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        pontos_ganhos, nivel_atual, mudou_nivel, pontuacao_total, usou_dica) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         sessao.id,
         perguntaId,
@@ -384,25 +348,20 @@ const submitAnswer = async (req, res) => {
         sessaoAtualizada.ultimaResposta.pontosGanhos,
         sessaoAtualizada.nivel,
         sessaoAtualizada.ultimaResposta.mudouNivel,
-        sessaoAtualizada.pontuacao
+        sessaoAtualizada.pontuacao,
+        usouDica || false
       ]
     );
 
-    console.log(`✅ Resposta processada`);
-
-    // Não retornar informações de acerto/erro para o frontend
     res.json({
       success: true,
       finalizado: sessaoAtualizada.finalizado,
-      totalPerguntas: sessaoAtualizada.totalPerguntas
+      totalPerguntas: sessaoAtualizada.totalPerguntas,
+      usouDica: usouDica || false
     });
 
   } catch (error) {
-    console.error('❌ [submitAnswer] ERRO:', error);
-    res.status(500).json({ 
-      error: 'Erro ao processar resposta',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Erro ao processar resposta', details: error.message });
   }
 };
 
@@ -412,9 +371,7 @@ const submitQuiz = async (req, res) => {
     const pool = getPool();
 
     if (!pool) {
-      return res.status(503).json({ 
-        error: 'Banco de dados não disponível' 
-      });
+      return res.status(503).json({ error: 'Banco de dados não disponível' });
     }
 
     const sessionResult = await pool.query(
@@ -476,7 +433,7 @@ const submitQuiz = async (req, res) => {
     } else {
       await pool.query(
         `INSERT INTO resultados 
-         (usuario_id, quiz_id, pontuacao_total, nivel_resultante, total_perguntas, 
+         (usuario_id, quiz_id, pontuacao_total, nivel_resultante, totalPerguntas, 
           acertos, erros, percentual_conclusao, modo, atingiu_maximo) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
@@ -488,77 +445,55 @@ const submitQuiz = async (req, res) => {
           relatorio.acertos,
           relatorio.erros,
           relatorio.percentualConclusao,
-          relatorio.modo,
+          sessao.modo,
           relatorio.atingiuMaximo
         ]
       );
     }
 
     await pool.query(
-      `UPDATE usuarios 
-       SET quiz_completed = TRUE, 
-           nivel_atual = $1, 
-           pontuacao_final = $2 
-       WHERE id = $3`,
-      [relatorio.nivelFinal, relatorio.pontuacaoFinal, sessao.user_id]
-    );
-
-    await pool.query(
       'UPDATE quiz_sessions SET finalizado = TRUE WHERE id = $1',
       [sessao.id]
     );
 
-    console.log(`✅ Quiz finalizado: ${email}`);
-
-    res.json({ success: true, relatorio });
+    res.json({
+      success: true,
+      message: 'Quiz finalizado com sucesso',
+      relatorio
+    });
 
   } catch (error) {
-    console.error('❌ [submitQuiz] ERRO:', error);
-    res.status(500).json({ 
-      error: 'Erro ao finalizar quiz',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Erro ao finalizar quiz', details: error.message });
   }
 };
 
 const getQuizResult = async (req, res) => {
   try {
     const { email } = req.params;
+
     const pool = getPool();
 
     if (!pool) {
-      return res.status(503).json({ 
-        error: 'Banco de dados não disponível' 
-      });
+      return res.status(503).json({ error: 'Banco de dados não disponível' });
     }
 
     const result = await pool.query(
-      `SELECT r.*, u.email, u.nome 
+      `SELECT r.*, q.tipo 
        FROM resultados r
+       JOIN quizzes q ON r.quiz_id = q.id
        JOIN usuarios u ON r.usuario_id = u.id
-       WHERE u.email = $1 
-       ORDER BY r.data_realizacao DESC 
-       LIMIT 1`,
+       WHERE u.email = $1`,
       [email]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        error: 'Nenhum resultado encontrado' 
-      });
+      return res.status(404).json({ error: 'Resultado não encontrado' });
     }
 
-    res.json({ 
-      success: true,
-      result: result.rows[0] 
-    });
+    res.json({ success: true, resultado: result.rows[0] });
 
   } catch (error) {
-    console.error('❌ Erro ao buscar resultado:', error);
-    res.status(500).json({ 
-      error: 'Erro ao buscar resultado',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Erro ao buscar resultado', details: error.message });
   }
 };
 

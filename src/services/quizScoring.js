@@ -1,6 +1,6 @@
 class QuizScoringService {
   constructor() {
-        this.MODOS = {
+    this.MODOS = {
       FACIL: { pesoIniciante: 1, pesoExpert: 3, nome: 'Fácil' },
       MEDIO: { pesoIniciante: 2, pesoExpert: 5, nome: 'Médio' },
       DIFICIL: { pesoIniciante: 3, pesoExpert: 7, nome: 'Difícil' }
@@ -9,6 +9,7 @@ class QuizScoringService {
     this.LIMITE_PONTOS = 30;
     this.LIMITE_PERGUNTAS = 12;
     this.ACERTOS_PARA_SUBIR = 2;
+    this.PENALIDADE_DICA = 0.5;
   }
 
   iniciarQuiz(modo = 'MEDIO') {
@@ -28,13 +29,9 @@ class QuizScoringService {
   }
 
   /**
-   * @param {Object} sessao - Sessão atual do quiz
-   * @param {Number} questaoId - ID da questão
-   * @param {Boolean} respostaCorreta - Se o usuário acertou
-   * @param {String} dificuldadeQuestao - 'INICIANTE' ou 'EXPERT'
-   * @returns {Object} - Sessão atualizada
+   * @param {Boolean} usouDica
    */
-  processarResposta(sessao, questaoId, respostaCorreta, dificuldadeQuestao) {
+  processarResposta(sessao, questaoId, respostaCorreta, dificuldadeQuestao, usouDica = false) {
     if (this.quizFinalizado(sessao)) {
       return {
         ...sessao,
@@ -52,13 +49,19 @@ class QuizScoringService {
     if (sessao.nivel === 'INICIANTE') {
       if (acertou && dificuldadeQuestao === 'INICIANTE') {
         pontosGanhos = sessao.pesoIniciante;
+        
+                if (usouDica) {
+          pontosGanhos = Math.floor(pontosGanhos * this.PENALIDADE_DICA);
+          mensagem = '💡 Dica usada: pontos reduzidos em 50%';
+        }
+        
         sessao.acertosSeguidosIniciante++;
 
         if (sessao.acertosSeguidosIniciante === this.ACERTOS_PARA_SUBIR) {
           sessao.nivel = 'EXPERT';
           sessao.acertosSeguidosIniciante = 0;
           mudouNivel = true;
-          mensagem = '⬆️ Subiu para o nível EXPERT!';
+          mensagem += ' ⬆️ Subiu para o nível EXPERT!';
         }
       } else if (!acertou) {
         sessao.acertosSeguidosIniciante = 0;
@@ -67,6 +70,12 @@ class QuizScoringService {
     } else if (sessao.nivel === 'EXPERT') {
       if (acertou && dificuldadeQuestao === 'EXPERT') {
         pontosGanhos = sessao.pesoExpert;
+        
+        
+        if (usouDica) {
+          pontosGanhos = Math.floor(pontosGanhos * this.PENALIDADE_DICA);
+          mensagem = '💡 Dica usada: pontos reduzidos em 50%';
+        }
       } else if (!acertou) {
         sessao.nivel = 'INICIANTE';
         mudouNivel = true;
@@ -83,6 +92,7 @@ class QuizScoringService {
       questaoId,
       acertou,
       pontosGanhos,
+      usouDica, 
       nivelAtual: sessao.nivel,
       mudouNivel,
       pontuacaoTotal: sessao.pontuacao
@@ -104,15 +114,27 @@ class QuizScoringService {
         acertou,
         pontosGanhos,
         mudouNivel,
+        usouDica,
         mensagem
       }
     };
   }
 
   quizFinalizado(sessao) {
-    return sessao.pontuacao >= this.LIMITE_PONTOS || 
-           sessao.totalPerguntas >= this.LIMITE_PERGUNTAS;
+  
+  const atingiuPontuacaoMaxima = sessao.pontuacao >= this.LIMITE_PONTOS;
+  const respondeTodasPerguntas = sessao.totalPerguntas >= this.LIMITE_PERGUNTAS;
+  
+  if (atingiuPontuacaoMaxima) {
+    console.log('🏆 Finalizado por pontuação máxima:', sessao.pontuacao);
   }
+  
+  if (respondeTodasPerguntas) {
+    console.log('📋 Finalizado por número de perguntas:', sessao.totalPerguntas);
+  }
+  
+  return atingiuPontuacaoMaxima || respondeTodasPerguntas;
+}
 
   calcularNivelFinal(pontuacao) {
     if (pontuacao >= 25) return 'AVANÇADO';
@@ -125,6 +147,7 @@ class QuizScoringService {
     const percentualConclusao = Math.round((sessao.pontuacao / this.LIMITE_PONTOS) * 100);
     const acertos = sessao.historico.filter(h => h.acertou).length;
     const erros = sessao.totalPerguntas - acertos;
+    const dicasUsadas = sessao.historico.filter(h => h.usouDica).length;
 
     return {
       pontuacaoFinal: sessao.pontuacao,
@@ -135,6 +158,7 @@ class QuizScoringService {
       percentualConclusao,
       modo: sessao.modo,
       atingiuMaximo: sessao.pontuacao >= this.LIMITE_PONTOS,
+      dicasUsadas,
       historico: sessao.historico
     };
   }
