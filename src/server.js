@@ -8,11 +8,11 @@ const routes = require('./routes');
 const app = express();
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+    origin: "https://oraculum-front.vercel.app",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
 }));
+
 
 
 app.use(express.json());
