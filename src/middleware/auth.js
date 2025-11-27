@@ -42,7 +42,9 @@ const verificarAdmin = async (req, res, next) => {
     const email = req.body.email || req.params.email || req.query.email;
 
     if (!email) {
-      return res.status(400).json({ error: 'Email é obrigatório para acesso admin' });
+      return res.status(400).json({ 
+        error: 'Email é obrigatório para acesso admin' 
+      });
     }
 
     const pool = getPool();
@@ -59,7 +61,9 @@ const verificarAdmin = async (req, res, next) => {
     );
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
+      return res.status(404).json({ 
+        error: 'Usuário não encontrado' 
+      });
     }
 
     const userData = result.rows[0];

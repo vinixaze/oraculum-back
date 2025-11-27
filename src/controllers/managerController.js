@@ -34,7 +34,6 @@ const getDashboard = async (req, res) => {
     const totalUsuarios = usersResult.rows.length;
     const usuariosQuizCompleto = usersResult.rows.filter(u => u.quiz_completed).length;
 
-    // Contagem por nível
     const usuariosIniciante = usersResult.rows.filter(
       u => u.quiz_completed && u.nivel_atual === 'INICIANTE'
     ).length;
@@ -47,12 +46,10 @@ const getDashboard = async (req, res) => {
       u => u.quiz_completed && u.nivel_atual === 'AVANÇADO'
     ).length;
 
-    // Média de pontuação
     const pontuacaoMedia = usersResult.rows
       .filter(u => u.quiz_completed && u.pontuacao_final)
       .reduce((acc, u) => acc + (u.pontuacao_final || 0), 0) / (usuariosQuizCompleto || 1);
 
-    // Taxa média de acerto
     const taxaAcertoMedia = usersResult.rows
       .filter(u => u.quiz_completed && u.acertos && u.total_perguntas)
       .reduce((acc, u) => acc + ((u.acertos / u.total_perguntas) * 100), 0) / (usuariosQuizCompleto || 1);
@@ -151,12 +148,14 @@ const getCollaboratorDetail = async (req, res) => {
     `, [email]);
 
     if (userResult.rows.length === 0) {
+      console.log('❌ [getCollaboratorDetail] Colaborador não encontrado:', email);
       return res.status(404).json({ 
         error: 'Colaborador não encontrado' 
       });
     }
 
     const user = userResult.rows[0];
+    console.log('✅ [getCollaboratorDetail] Colaborador encontrado:', user.email);
 
     const completedLessons = user.completed_lessons ? user.completed_lessons.length : 0;
     const totalLessons = 4;
@@ -258,7 +257,7 @@ const getCollaboratorDetail = async (req, res) => {
       answersHistory: answersResult.rows
     };
 
-    console.log(`👤 Detalhes do colaborador: ${email}`);
+    console.log(`✅ [getCollaboratorDetail] Enviando detalhes do colaborador: ${email}`);
 
     res.json({ 
       success: true,
@@ -266,7 +265,7 @@ const getCollaboratorDetail = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Erro ao buscar colaborador:', error);
+    console.error('❌ [getCollaboratorDetail] Erro:', error);
     res.status(500).json({ 
       error: 'Erro ao buscar detalhes do colaborador',
       details: error.message

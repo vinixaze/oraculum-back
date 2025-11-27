@@ -106,7 +106,7 @@ const getNextQuestion = async (req, res) => {
 
     const sessao = sessionResult.rows[0];
 
-      if (sessao.total_perguntas >= 12) {
+    if (sessao.total_perguntas >= 12) {
       await pool.query(
         'UPDATE quiz_sessions SET finalizado = TRUE WHERE id = $1',
         [sessao.id]
@@ -243,14 +243,25 @@ const submitAnswer = async (req, res) => {
     const { email, perguntaId, alternativaEscolhidaId, usouDica } = req.body;
     const pool = getPool();
 
+    // LOG 1: Dados recebidos
+    console.log('📥 [submitAnswer] Dados recebidos:', {
+      email,
+      perguntaId,
+      alternativaEscolhidaId,
+      usouDica
+    });
+
     if (!pool) {
       return res.status(503).json({ error: 'Banco de dados não disponível' });
     }
 
     if (!email || !perguntaId || !alternativaEscolhidaId) {
+      console.log('❌ [submitAnswer] Dados incompletos');
       return res.status(400).json({ error: 'Dados incompletos' });
     }
 
+    // LOG 2: Buscando sessão
+    console.log('🔍 [submitAnswer] Buscando sessão para:', email);
     const sessionResult = await pool.query(
       `SELECT s.*, u.id as user_id 
        FROM quiz_sessions s 
@@ -262,42 +273,62 @@ const submitAnswer = async (req, res) => {
     );
 
     if (sessionResult.rows.length === 0) {
+      console.log('❌ [submitAnswer] Sessão não encontrada');
       return res.status(404).json({ error: 'Sessão não encontrada' });
     }
 
     const sessao = sessionResult.rows[0];
+    console.log('✅ [submitAnswer] Sessão encontrada:', {
+      id: sessao.id,
+      totalPerguntas: sessao.total_perguntas,
+      nivel: sessao.nivel
+    });
 
+    // LOG 3: Verificar se já respondeu
+    console.log('🔍 [submitAnswer] Verificando se já respondeu pergunta:', perguntaId);
     const alreadyAnswered = await pool.query(
       'SELECT id FROM quiz_answers WHERE session_id = $1 AND pergunta_id = $2',
       [sessao.id, perguntaId]
     );
 
     if (alreadyAnswered.rows.length > 0) {
+      console.log('⚠️ [submitAnswer] Pergunta já respondida');
       return res.status(400).json({ error: 'Pergunta já foi respondida' });
     }
 
+    // LOG 4: Buscar dificuldade da pergunta
+    console.log('🔍 [submitAnswer] Buscando dificuldade da pergunta:', perguntaId);
     const perguntaResult = await pool.query(
       'SELECT dificuldade FROM perguntas WHERE id = $1',
       [perguntaId]
     );
 
     if (perguntaResult.rows.length === 0) {
+      console.log('❌ [submitAnswer] Pergunta não encontrada');
       return res.status(404).json({ error: 'Pergunta não encontrada' });
     }
 
     const dificuldadeQuestao = perguntaResult.rows[0].dificuldade;
+    console.log('✅ [submitAnswer] Dificuldade:', dificuldadeQuestao);
 
+    // LOG 5: Verificar se resposta está correta
+    console.log('🔍 [submitAnswer] Verificando alternativa:', alternativaEscolhidaId);
     const alternativaResult = await pool.query(
       'SELECT correta FROM alternativas WHERE id = $1',
       [alternativaEscolhidaId]
     );
 
     if (alternativaResult.rows.length === 0) {
+      console.log('❌ [submitAnswer] Alternativa não encontrada');
       return res.status(404).json({ error: 'Alternativa não encontrada' });
     }
 
     const respostaCorreta = alternativaResult.rows[0].correta;
+    console.log('✅ [submitAnswer] Resposta correta?', respostaCorreta);
+    console.log('💡 [submitAnswer] Usou dica?', usouDica || false);
 
+    // LOG 6: Processar resposta com quizScoring
+    console.log('⚙️ [submitAnswer] Processando com quizScoring...');
     const sessaoAtualizada = quizScoring.processarResposta(
       {
         modo: sessao.modo,
@@ -316,6 +347,15 @@ const submitAnswer = async (req, res) => {
       usouDica || false
     );
 
+    console.log('✅ [submitAnswer] Sessão atualizada:', {
+      pontuacao: sessaoAtualizada.pontuacao,
+      totalPerguntas: sessaoAtualizada.totalPerguntas,
+      nivel: sessaoAtualizada.nivel,
+      finalizado: sessaoAtualizada.finalizado
+    });
+
+    // LOG 7: Atualizar banco de dados
+    console.log('💾 [submitAnswer] Atualizando quiz_sessions...');
     await pool.query(
       `UPDATE quiz_sessions 
        SET pontuacao = $1, 
@@ -335,6 +375,7 @@ const submitAnswer = async (req, res) => {
       ]
     );
 
+    console.log('💾 [submitAnswer] Inserindo em quiz_answers...');
     await pool.query(
       `INSERT INTO quiz_answers 
        (session_id, pergunta_id, alternativa_escolhida_id, acertou, 
@@ -353,6 +394,8 @@ const submitAnswer = async (req, res) => {
       ]
     );
 
+    console.log('✅ [submitAnswer] Resposta processada com sucesso!');
+
     res.json({
       success: true,
       finalizado: sessaoAtualizada.finalizado,
@@ -361,7 +404,13 @@ const submitAnswer = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao processar resposta', details: error.message });
+    console.error('❌ [submitAnswer] ERRO COMPLETO:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Erro ao processar resposta', 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
@@ -433,7 +482,7 @@ const submitQuiz = async (req, res) => {
     } else {
       await pool.query(
         `INSERT INTO resultados 
-         (usuario_id, quiz_id, pontuacao_total, nivel_resultante, totalPerguntas, 
+         (usuario_id, quiz_id, pontuacao_total, nivel_resultante, total_perguntas, 
           acertos, erros, percentual_conclusao, modo, atingiu_maximo) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [

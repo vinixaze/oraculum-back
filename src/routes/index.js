@@ -21,17 +21,20 @@ const {
   getCollaboratorDetail 
 } = require('../controllers/managerController');
 
+// User routes
 router.post('/users/register', registerUser);
 router.get('/users/:email', getUser);
 router.get('/users', getAllUsers);
 router.get('/users/test/connection', testUserConnection);
 
+// Quiz routes
 router.post('/quiz/start', startQuiz);
 router.get('/quiz/next-question/:email', getNextQuestion);
 router.post('/quiz/answer', submitAnswer);
 router.post('/quiz/submit', submitQuiz);
 router.get('/quiz/result/:email', getQuizResult);
 
+// Quiz debug route
 router.get('/quiz/debug/:email', async (req, res) => {
   const { getPool } = require('../config/db');
   const pool = getPool();
@@ -68,12 +71,15 @@ router.get('/quiz/debug/:email', async (req, res) => {
   }
 });
 
+// Trail routes
 router.post('/trail/progress', saveProgress);
 router.get('/trail/progress/:email', getProgress);
 
+// Manager routes
 router.get('/manager/dashboard', verificarAdmin, getDashboard);
 router.get('/manager/collaborator/:email', verificarAdmin, getCollaboratorDetail);
 
+// Health check
 router.get('/health', (req, res) => {
   const { isPostgresConnected } = require('../config/db');
   
@@ -86,4 +92,4 @@ router.get('/health', (req, res) => {
   });
 });
 
-module.exports = router;
+module.exports = router;  
