@@ -423,6 +423,8 @@ const submitQuiz = async (req, res) => {
       return res.status(503).json({ error: 'Banco de dados não disponível' });
     }
 
+    console.log('📝 [submitQuiz] Finalizando quiz para:', email);
+
     const sessionResult = await pool.query(
       `SELECT s.*, u.id as user_id 
        FROM quiz_sessions s 
@@ -438,11 +440,14 @@ const submitQuiz = async (req, res) => {
     }
 
     const sessao = sessionResult.rows[0];
+    console.log('✅ [submitQuiz] Sessão encontrada:', sessao.id);
 
     const answersResult = await pool.query(
       'SELECT * FROM quiz_answers WHERE session_id = $1 ORDER BY answered_at',
       [sessao.id]
     );
+
+    console.log('📊 [submitQuiz] Total de respostas:', answersResult.rows.length);
 
     const sessaoCompleta = {
       modo: sessao.modo,
@@ -455,6 +460,7 @@ const submitQuiz = async (req, res) => {
     };
 
     const relatorio = quizScoring.gerarRelatorio(sessaoCompleta);
+    console.log('📋 [submitQuiz] Relatório gerado:', relatorio);
 
     const existingResult = await pool.query(
       'SELECT id FROM resultados WHERE usuario_id = $1 AND quiz_id = $2',
@@ -479,6 +485,7 @@ const submitQuiz = async (req, res) => {
           existingResult.rows[0].id
         ]
       );
+      console.log('✅ [submitQuiz] Resultado atualizado');
     } else {
       await pool.query(
         `INSERT INTO resultados 
@@ -498,12 +505,30 @@ const submitQuiz = async (req, res) => {
           relatorio.atingiuMaximo
         ]
       );
+      console.log('✅ [submitQuiz] Novo resultado criado');
     }
+
+    await pool.query(
+      `UPDATE usuarios 
+       SET quiz_completed = TRUE,
+           nivel_atual = $1,
+           pontuacao_final = $2,
+           last_access = NOW()
+       WHERE id = $3`,
+      [
+        relatorio.nivelFinal,
+        relatorio.pontuacaoFinal,
+        sessao.user_id
+      ]
+    );
+    console.log('✅ [submitQuiz] Usuário atualizado com quiz_completed = TRUE');
 
     await pool.query(
       'UPDATE quiz_sessions SET finalizado = TRUE WHERE id = $1',
       [sessao.id]
     );
+
+    console.log('🎉 [submitQuiz] Quiz finalizado com sucesso para:', email);
 
     res.json({
       success: true,
@@ -512,7 +537,11 @@ const submitQuiz = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao finalizar quiz', details: error.message });
+    console.error('❌ [submitQuiz] Erro:', error);
+    res.status(500).json({ 
+      error: 'Erro ao finalizar quiz', 
+      details: error.message 
+    });
   }
 };
 
